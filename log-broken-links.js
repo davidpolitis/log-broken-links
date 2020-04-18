@@ -77,7 +77,7 @@ async function checkExternalPage(url, referrer)
             }
             catch(error)
             {
-                console.error(`Error for ${url.href} - ${error}`);
+                console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
             }
         }
         // Other URLs...
