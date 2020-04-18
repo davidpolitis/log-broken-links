@@ -4,9 +4,9 @@ let config =
     useInitialUrls: false,
     initialUrls: ['https://initialwebsite.com/'],
     concurrency: 1, // Number of queued tasks to perform at once (Recommended: 1)
-    timeout: 10000, // Timeout duration for HTTP/HTTPS requests
     rateLimit: 1000, // Number of milliseconds to delay before each queued task (Recommended: >= 1000)
     retries: 3, // Number of retries if the request fails (Recommended: 3)
+    timeout: 10000, // Timeout duration for HTTP/HTTPS requests
     retriesTimeout: 10000, // Number of milliseconds to wait before retrying (Recommended: 10000)
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }, // Avoids bot-detection
 };

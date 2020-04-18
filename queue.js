@@ -1,5 +1,7 @@
 /* Adapted from https://stackoverflow.com/a/51482852 */
 
+const sleep = require('./sleep');
+
 class Queue {
     constructor(maxSimultaneously = 1, __rateLimit = 0) {
         this.maxSimultaneously = maxSimultaneously;
@@ -7,8 +9,6 @@ class Queue {
         this.__active = 0;
         this.__queue = [];
     }
-
-    sleep = m => new Promise(r => setTimeout(r, m));
 
     /** @param { () => Promise<T> } func 
      * @template T
@@ -22,7 +22,7 @@ class Queue {
         try {
             const returnValue = await func();
             if (this.__rateLimit > 0)
-                this.sleep(this.__rateLimit);
+                await sleep(this.__rateLimit);
             return returnValue;
         } catch(err) {
             throw err;

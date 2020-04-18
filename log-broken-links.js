@@ -1,9 +1,10 @@
 'use strict';
 
 const config = require('./config');
+const sleep = require('./sleep');
 const Queue = require('./queue');
-const { promises: fs } = require("fs");
-const path = require("path");
+const { promises: fs } = require('fs');
+const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio'); // Use jsdom or Puppeteer instead if JS must be executed on page
 
@@ -11,6 +12,8 @@ const axiosInstance = axios.create({
     timeout: config.timeout,
     headers: config.headers
 });
+
+let checkedInternalUrls = [];
 
 const queue = new Queue(config.concurrency, config.rateLimit);
 
@@ -57,6 +60,36 @@ function getNotFoundTest(url)
     return null;
 }
 
+async function getPage(url, useHead = false)
+{
+    let tries = 0;
+
+    while (tries < config.retries)
+    {
+        try
+        {
+            const res = (useHead) ? await axiosInstance.head(url) : await axiosInstance.get(url);
+
+            if (isOk(res.status))
+                return res;
+            else
+                throw res.status;
+        }
+        catch(error)
+        {
+            if (tries == config.retries - 1)
+                throw `Retry limit reached (${error})`;
+            
+            ++tries;
+
+            if (config.retriesTimeout > 0)
+                await sleep(config.retriesTimeout);
+        }
+    }
+
+    return null;
+}
+
 async function checkExternalPage(url, referrer)
 {
     if (url)
@@ -70,10 +103,7 @@ async function checkExternalPage(url, referrer)
 
             try
             {
-                const res = await axiosInstance.head(oembedUrl);
-
-                if (!isOk(res.status))
-                    console.error(`Failed to fetch ${oembedUrl} (${url.href}) (${res.status})! | Referrer: ${referrer}`);
+                await getPage(oembedUrl, true);
             }
             catch(error)
             {
@@ -87,38 +117,31 @@ async function checkExternalPage(url, referrer)
 
             try
             {
-                const res = await axiosInstance.get(url.href);
+                const res = await getPage(url.href);
 
-                if (isOk(res.status))
+                // Run special found found checks if response is OK
+                if (!isNotFoundUrl(url))
                 {
-                    // Run special found found checks if response is OK
-                    if (!isNotFoundUrl(url))
+                    const html = res.data;
+
+                    if (html)
                     {
-                        const html = res.data;
+                        const notFoundTest = getNotFoundTest(url);
 
-                        if (html)
+                        if (notFoundTest)
                         {
-                            const notFoundTest = getNotFoundTest(url);
-
-                            if (notFoundTest)
-                            {
-                                if (notFoundTest.test(html))
-                                    console.error(`Content matches 404 test for ${url.href} (${res.status})! | Referrer: ${referrer}`);
-                            }
-                            else if (config.genericNotFoundTest(html))
-                            {
-                                console.error(`Content matches generic 404 test for ${url.href} (${res.status})! | Referrer: ${referrer}`);
-                            }
+                            if (notFoundTest.test(html))
+                                console.error(`Content matches 404 test for ${url.href} (${res.status})! | Referrer: ${referrer}`);
                         }
-                        else
+                        else if (config.genericNotFoundTest(html))
                         {
-                            console.error(`Content was empty for ${url.href}! | Referrer: ${referrer}`);
+                            console.error(`Content matches generic 404 test for ${url.href} (${res.status})! | Referrer: ${referrer}`);
                         }
                     }
-                }
-                else
-                {
-                    console.error(`Failed to fetch ${url.href} (${res.status})! | Referrer: ${referrer}`);
+                    else
+                    {
+                        console.error(`Content was empty for ${url.href}! | Referrer: ${referrer}`);
+                    }
                 }
             }
             catch(error)
@@ -133,14 +156,16 @@ async function checkInternalPageByUrl(url, referrer)
 {
     if (url)
     {
-        console.log(`Fetching ${url.href}...`);
-
-        try
+        if (checkedInternalUrls.includes(url))
         {
-            const res = await axiosInstance.get(url.href);
-
-            if (isOk(res.status))
+            console.log(`Skipping already checked page ${url.href}`);
+        }
+        else
+        {
+            try
             {
+                const res = await getPage(url.href);
+
                 const html = res.data;
 
                 if (html)
@@ -172,20 +197,21 @@ async function checkInternalPageByUrl(url, referrer)
                                 queue.add(() => checkExternalPage(nextUrl, url.href));
                         }
                     });
+                        
+                    // Don't check this URL again
+                    checkedInternalUrls.push(url.href);
                 }
                 else
                 {
                     console.error(`Content was empty for ${url.href}! | Referrer: ${referrer}`);
                 }
             }
-            else
+            catch(error)
             {
-                console.error(`Failed to fetch page ${url.href}! (${res.status}) | Referrer: ${referrer}`);
+                console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
             }
-        }
-        catch(error)
-        {
-            console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
+
+            console.log(`Fetching ${url.href}...`);
         }
     }
 }
