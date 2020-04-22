@@ -18,11 +18,7 @@ config.notfoundUrls = [
         path: "/.*"
     },
     {
-        hostname: "www[.]youtube[.]com",
-        path: "/channel/.*"
-    },
-    {
-        hostname: "www[.]youtube[.]com",
+        hostname: ".*[.]youtube[.]com",
         path: "/user/.*"
     },
     {
@@ -102,7 +98,7 @@ config.notfoundUrls = [
 // URL formats to translate to oembed URLs to return 404s for invalid/broken URLs - Either RegExp or exact
 config.oembedUrls = [
     {
-        hostname: "www[.]youtube[.]com",
+        hostname: ".*[.]youtube[.]com",
         path: "/watch?v=.*", // We don't need one for user URLs as they return 404s and cannot be embedded, E.g. https://www.youtube.com/user/rnfjcvx87cvx7x
         redirect_prefix: "https://www.youtube.com/oembed?format=json&url="
     },
@@ -125,7 +121,15 @@ config.notFoundTests = [
         path: "/artist/.*",
         test: function(html)
         {
-            return (html.toLowerCase().includes('アーティストが見つかりません'));
+            return (html.includes('アーティストが見つかりません'));
+        }
+    },
+    {
+        hostname: ".*[.]youtube[.]com",
+        path: "/channel/.*",
+        test: function(html)
+        {
+            return (html.includes('"alerts":[{"alertRenderer":{"type":"ERROR"'));
         }
     }
 ]
@@ -133,7 +137,7 @@ config.notFoundTests = [
 // Generic 404 check
 config.genericNotFoundTest = function(html)
 {
-    return (html.toLowerCase().includes('Not Found'));
+    return (html.toLowerCase().includes('not found'));
 }
 
 module.exports = config;
