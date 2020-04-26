@@ -17,11 +17,6 @@ let checkedInternalUrls = [];
 
 const queue = new Queue(config.concurrency, config.rateLimit);
 
-function isOk(statusCode)
-{
-    return statusCode >= 200 && statusCode < 300;
-}
-
 function isMatch(regexp, str)
 {
     return new RegExp(regexp).test(str) || regexp == str;
@@ -68,17 +63,23 @@ async function getPage(url, useHead = false)
     {
         try
         {
-            const res = (useHead) ? await axiosInstance.head(url) : await axiosInstance.get(url);
-
-            if (isOk(res.status))
-                return res;
-            else
-                throw res.status;
+            return (useHead) ? await axiosInstance.head(url) : await axiosInstance.get(url);
         }
         catch(error)
         {
             if (tries == config.retries - 1)
-                throw `Retry limit reached (${error})`;
+            {
+                let errorMessage;
+                
+                if (error.response)
+                    errorMessage = error.response.status;
+                else if (error.request)
+                    errorMessage = error.request;
+                else
+                    errorMessage = error.message;
+                
+                throw new Error(`Retry limit reached (${errorMessage})`)
+            }
             
             ++tries;
 
@@ -107,7 +108,7 @@ async function checkExternalPage(url, referrer)
             }
             catch(error)
             {
-                console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
+                console.error(`Error for ${url.href} - ${error.message} | Referrer: ${referrer}`);
             }
         }
         // Other URLs...
@@ -146,7 +147,7 @@ async function checkExternalPage(url, referrer)
             }
             catch(error)
             {
-                console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
+                console.error(`Error for ${url.href} - ${error.message} | Referrer: ${referrer}`);
             }
         }
     }
@@ -208,7 +209,7 @@ async function checkInternalPageByUrl(url, referrer)
             }
             catch(error)
             {
-                console.error(`Error for ${url.href} - ${error} | Referrer: ${referrer}`);
+                console.error(`Error for ${url.href} - ${error.message} | Referrer: ${referrer}`);
             }
 
             console.log(`Fetching ${url.href}...`);
